@@ -1,396 +1,347 @@
 import React, { useState, useEffect } from "react";
+// react-router-dom 필수 모듈 import
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  useParams,
+  useNavigate,
+} from "react-router-dom";
 
 // ==========================================
-// 1. 자식 컴포넌트 분리 (Card, Modal)
+// 1. 상세 페이지 (Detail Page) - Route로 이동할 곳
 // ==========================================
+const Detail = () => {
+  const { id } = useParams(); // URL에서 :id 파라미터를 가져옴
+  const navigate = useNavigate();
+  const [anime, setAnime] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-// 애니메이션 카드 컴포넌트
-const AnimeCard = ({ anime, onClick }) => (
-  <div style={styles.card} onClick={() => onClick(anime)}>
-    <div style={styles.imageContainer}>
-      <img
-        src={anime.images.jpg.large_image_url}
-        alt={anime.title}
-        style={styles.image}
-      />
-      <div style={styles.scoreBadge}>⭐ {anime.score || "N/A"}</div>
-    </div>
-    <div style={styles.content}>
-      <h3 style={styles.title}>{anime.title}</h3>
-      <p style={styles.info}>
-        {anime.year ? `${anime.year}년` : "방영일 미정"} • {anime.type}
-      </p>
-    </div>
-  </div>
-);
+  // ID가 바뀔 때마다 해당 애니메이션 상세 정보 가져오기
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        const response = await fetch(`https://api.jikan.moe/v4/anime/${id}`);
+        const data = await response.json();
+        setAnime(data.data);
+      } catch (error) {
+        console.error("Error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDetail();
+  }, [id]);
 
-// 상세 정보 모달 컴포넌트
-const AnimeModal = ({ anime, onClose }) => {
-  if (!anime) return null;
+  if (loading) return <div style={styles.centerText}>로딩 중... 🌀</div>;
+  if (!anime)
+    return <div style={styles.centerText}>정보를 찾을 수 없습니다. 😢</div>;
 
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        <button style={styles.closeButton} onClick={onClose}>
-          &times;
-        </button>
-        <div style={styles.modalHeader}>
-          <h2 style={{ marginRight: "30px" }}>{anime.title}</h2>
-          <span style={{ color: "#666", fontSize: "0.9rem" }}>
-            {anime.title_japanese}
-          </span>
+    <div style={styles.container}>
+      {/* 뒤로 가기 버튼 */}
+      <button onClick={() => navigate(-1)} style={styles.backButton}>
+        ← 뒤로 가기
+      </button>
+
+      <div style={styles.detailCard}>
+        <div style={styles.detailHeader}>
+          <h1>{anime.title}</h1>
+          <p style={{ color: "#666" }}>{anime.title_japanese}</p>
         </div>
-        <div style={styles.modalBody}>
+
+        <div style={styles.detailBody}>
           <img
-            src={anime.images.jpg.image_url}
+            src={anime.images.jpg.large_image_url}
             alt={anime.title}
-            style={styles.modalImage}
+            style={styles.detailImage}
           />
-          <div style={styles.modalText}>
+
+          <div style={styles.detailInfo}>
+            <div style={styles.tagContainer}>
+              <span style={styles.badge}>평점 ⭐ {anime.score}</span>
+              <span style={styles.badge}>{anime.year}년</span>
+              <span style={styles.badge}>{anime.status}</span>
+            </div>
+
             <p>
               <strong>장르:</strong>{" "}
               {anime.genres.map((g) => g.name).join(", ")}
             </p>
             <p>
-              <strong>등급:</strong> {anime.rating}
-            </p>
-            <p>
               <strong>줄거리:</strong>
             </p>
-            <p style={styles.synopsis}>
-              {anime.synopsis || "줄거리 정보가 없습니다."}
-            </p>
+            <p style={styles.synopsis}>{anime.synopsis}</p>
+
             <a
               href={anime.url}
               target="_blank"
               rel="noreferrer"
               style={styles.linkButton}
             >
-              MyAnimeList에서 더 보기
+              공식 페이지 이동
             </a>
           </div>
         </div>
+
+        {/* 트레일러 영상이 있다면 표시 */}
+        {anime.trailer?.embed_url && (
+          <div style={styles.videoContainer}>
+            <h3>🎬 트레일러</h3>
+            <iframe
+              title="trailer"
+              src={anime.trailer.embed_url}
+              width="100%"
+              height="400px"
+              frameBorder="0"
+              allowFullScreen
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // ==========================================
-// 2. 메인 App 컴포넌트
+// 2. 메인/검색 페이지 (Home Page)
 // ==========================================
-
-function App() {
+const Home = () => {
   const [animeList, setAnimeList] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null); // 에러 상태 추가
-  const [selectedAnime, setSelectedAnime] = useState(null); // 모달용 선택된 애니
 
-  // 데이터 가져오기 (query가 없으면 Top Anime)
   const fetchAnime = async (query = "") => {
     setLoading(true);
-    setError(null);
     try {
       const baseUrl = "https://api.jikan.moe/v4";
-      // 쿼리 유무에 따라 엔드포인트 결정
       const url = query
         ? `${baseUrl}/anime?q=${query}&sfw=true&limit=12`
         : `${baseUrl}/top/anime?filter=bypopularity&limit=12`;
 
       const response = await fetch(url);
-
-      // 429 (Too Many Requests) 등 에러 처리
-      if (!response.ok) {
-        throw new Error(`API 호출 실패: ${response.status}`);
-      }
-
       const data = await response.json();
       setAnimeList(data.data || []);
-    } catch (err) {
-      console.error(err);
-      setError("데이터를 불러오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // 초기 로드
   useEffect(() => {
     fetchAnime();
   }, []);
 
-  // 검색 핸들러
   const handleSearch = (e) => {
     e.preventDefault();
-    if (!search.trim()) return; // 공백 검색 방지
     fetchAnime(search);
-  };
-
-  // 홈(초기화) 핸들러
-  const handleReset = () => {
-    setSearch("");
-    fetchAnime();
   };
 
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={{ cursor: "pointer" }} onClick={handleReset}>
-          🎬 Anime Finder
-        </h1>
-        <p>Jikan API를 활용한 애니메이션 검색 서비스</p>
+        <h1>🎬 Anime Finder</h1>
       </header>
 
-      {/* 검색 영역 */}
       <div style={styles.searchBox}>
         <form onSubmit={handleSearch} style={styles.form}>
           <input
             type="text"
-            placeholder="찾고 싶은 애니메이션 제목..."
+            placeholder="애니메이션 제목 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={styles.input}
           />
-          <button type="submit" style={styles.searchButton} disabled={loading}>
+          <button type="submit" style={styles.searchButton}>
             검색
           </button>
         </form>
-        {/* 검색 중일 때만 보이는 초기화 버튼 */}
-        {search && (
-          <button onClick={handleReset} style={styles.resetButton}>
-            전체 목록 보기
-          </button>
-        )}
       </div>
 
-      {/* 상태 메시지 영역 (로딩, 에러, 결과 없음) */}
-      <div style={styles.statusMessage}>
-        {loading && <div style={styles.loader}>로딩 중입니다... 🌀</div>}
-        {error && <div style={{ color: "red" }}>{error}</div>}
-        {!loading && !error && animeList.length === 0 && (
-          <div>검색 결과가 없습니다. 😢</div>
-        )}
-      </div>
-
-      {/* 그리드 영역 */}
-      {!loading && (
+      {loading ? (
+        <div style={styles.centerText}>로딩 중... 🌀</div>
+      ) : (
         <div style={styles.grid}>
           {animeList.map((anime) => (
-            <AnimeCard
+            // Link 컴포넌트를 사용해 클릭 시 /detail/ID 로 이동
+            <Link
+              to={`/detail/${anime.mal_id}`}
               key={anime.mal_id}
-              anime={anime}
-              onClick={setSelectedAnime} // 클릭 시 모달 열기
-            />
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div style={styles.card}>
+                <div style={styles.imageContainer}>
+                  <img
+                    src={anime.images.jpg.image_url}
+                    alt={anime.title}
+                    style={styles.image}
+                  />
+                  <div style={styles.scoreBadge}>⭐ {anime.score || "N/A"}</div>
+                </div>
+                <div style={styles.content}>
+                  <h3 style={styles.title}>{anime.title}</h3>
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
       )}
-
-      {/* 상세 정보 모달 */}
-      {selectedAnime && (
-        <AnimeModal
-          anime={selectedAnime}
-          onClose={() => setSelectedAnime(null)}
-        />
-      )}
     </div>
+  );
+};
+
+// ==========================================
+// 3. 라우터 설정 (App)
+// ==========================================
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* 메인 페이지 */}
+        <Route path="/" element={<Home />} />
+        {/* 상세 페이지 (:id 부분이 동적으로 변함) */}
+        <Route path="/detail/:id" element={<Detail />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
 // ==========================================
-// 3. 스타일 객체 (개선됨)
+// 4. 스타일
 // ==========================================
 const styles = {
   container: {
-    maxWidth: "1100px",
+    maxWidth: "1000px",
     margin: "0 auto",
     padding: "20px",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    color: "#333",
+    fontFamily: "sans-serif",
   },
-  header: {
+  header: { textAlign: "center", marginBottom: "30px", color: "#333" },
+  centerText: {
     textAlign: "center",
-    marginBottom: "40px",
+    fontSize: "1.2rem",
+    marginTop: "50px",
+    color: "#666",
   },
+
+  // 검색창 관련
   searchBox: {
+    display: "flex",
+    justifyContent: "center",
     marginBottom: "30px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "10px",
   },
-  form: {
-    display: "flex",
-    gap: "10px",
-    width: "100%",
-    maxWidth: "500px",
-  },
+  form: { display: "flex", gap: "10px", width: "100%", maxWidth: "500px" },
   input: {
     flex: 1,
-    padding: "14px",
-    fontSize: "16px",
+    padding: "12px",
     borderRadius: "8px",
-    border: "2px solid #ddd",
-    outline: "none",
-    transition: "border-color 0.2s",
+    border: "1px solid #ccc",
+    fontSize: "16px",
   },
   searchButton: {
-    padding: "14px 28px",
-    fontSize: "16px",
+    padding: "12px 24px",
     backgroundColor: "#6366f1",
     color: "white",
     border: "none",
     borderRadius: "8px",
     cursor: "pointer",
-    fontWeight: "bold",
-    transition: "background 0.2s",
   },
-  resetButton: {
+  backButton: {
+    marginBottom: "20px",
     padding: "8px 16px",
-    backgroundColor: "transparent",
-    color: "#666",
-    border: "1px solid #ccc",
-    borderRadius: "20px",
+    backgroundColor: "#f0f0f0",
+    border: "none",
+    borderRadius: "4px",
     cursor: "pointer",
     fontSize: "14px",
   },
-  statusMessage: {
-    textAlign: "center",
-    minHeight: "30px",
-    marginBottom: "20px",
-    fontSize: "1.1rem",
-    fontWeight: "500",
-  },
-  loader: {
-    color: "#6366f1",
-  },
+
+  // 그리드 & 카드
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-    gap: "25px",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: "20px",
   },
-  // Card Styles
   card: {
-    backgroundColor: "white",
     border: "1px solid #eee",
     borderRadius: "12px",
     overflow: "hidden",
-    cursor: "pointer",
-    transition: "transform 0.2s, box-shadow 0.2s",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-    position: "relative",
-  },
-  imageContainer: {
-    height: "300px",
-    overflow: "hidden",
-    position: "relative",
-  },
-  image: {
-    width: "100%",
+    transition: "transform 0.2s",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
     height: "100%",
-    objectFit: "cover",
-    transition: "transform 0.3s",
+    cursor: "pointer",
+    backgroundColor: "white",
   },
+  imageContainer: { height: "280px", overflow: "hidden", position: "relative" },
+  image: { width: "100%", height: "100%", objectFit: "cover" },
   scoreBadge: {
     position: "absolute",
     top: "10px",
     right: "10px",
     backgroundColor: "rgba(0,0,0,0.7)",
-    color: "#fff",
+    color: "white",
     padding: "4px 8px",
     borderRadius: "4px",
     fontSize: "12px",
-    fontWeight: "bold",
   },
-  content: {
-    padding: "15px",
-  },
+  content: { padding: "12px" },
   title: {
     fontSize: "16px",
-    margin: "0 0 8px 0",
+    margin: 0,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  info: {
-    fontSize: "13px",
-    color: "#888",
-    margin: 0,
-  },
-  // Modal Styles
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-    padding: "20px",
-  },
-  modalContent: {
+
+  // 상세 페이지 전용 스타일
+  detailCard: {
     backgroundColor: "white",
     borderRadius: "12px",
-    width: "100%",
-    maxWidth: "700px",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    position: "relative",
     padding: "30px",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
   },
-  closeButton: {
-    position: "absolute",
-    top: "15px",
-    right: "20px",
-    border: "none",
-    background: "none",
-    fontSize: "30px",
-    cursor: "pointer",
-    color: "#999",
-  },
-  modalHeader: {
-    marginBottom: "20px",
+  detailHeader: {
     borderBottom: "1px solid #eee",
-    paddingBottom: "10px",
+    paddingBottom: "20px",
+    marginBottom: "20px",
   },
-  modalBody: {
-    display: "flex",
-    gap: "20px",
-    flexWrap: "wrap",
-  },
-  modalImage: {
-    width: "200px",
+  detailBody: { display: "flex", gap: "30px", flexWrap: "wrap" },
+  detailImage: {
+    width: "300px",
     borderRadius: "8px",
     objectFit: "cover",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
   },
-  modalText: {
-    flex: 1,
-    minWidth: "250px",
-    lineHeight: "1.6",
+  detailInfo: { flex: 1, minWidth: "300px" },
+  tagContainer: { display: "flex", gap: "10px", marginBottom: "20px" },
+  badge: {
+    backgroundColor: "#f3f4f6",
+    padding: "6px 12px",
+    borderRadius: "20px",
+    fontSize: "14px",
+    color: "#4b5563",
+    fontWeight: "bold",
   },
   synopsis: {
-    maxHeight: "150px",
-    overflowY: "auto",
-    backgroundColor: "#f9f9f9",
-    padding: "10px",
+    lineHeight: "1.6",
+    color: "#444",
+    backgroundColor: "#f9fafb",
+    padding: "15px",
     borderRadius: "8px",
-    fontSize: "14px",
-    color: "#555",
-    marginBottom: "20px",
   },
   linkButton: {
     display: "inline-block",
-    backgroundColor: "#ff8c00", // MyAnimeList signature color
+    marginTop: "20px",
+    backgroundColor: "#ff8c00",
     color: "white",
     padding: "10px 20px",
     borderRadius: "6px",
     textDecoration: "none",
     fontWeight: "bold",
-    fontSize: "14px",
   },
+  videoContainer: { marginTop: "40px" },
 };
 
 export default App;

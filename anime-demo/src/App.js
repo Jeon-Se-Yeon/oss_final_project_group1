@@ -8,18 +8,44 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-// 1. API 주소들
+// 1. API 주소 및 상수 정의
 const USER_API_URL = "https://6909a7652d902d0651b4991f.mockapi.io/user_info";
 const REVIEW_API_URL =
   "https://6909a7ab2d902d0651b49af9.mockapi.io/AnimeReview";
 
+const GENRES = [
+  { id: 1, name: "액션 (Action)" },
+  { id: 2, name: "모험 (Adventure)" },
+  { id: 4, name: "코미디 (Comedy)" },
+  { id: 8, name: "드라마 (Drama)" },
+  { id: 10, name: "판타지 (Fantasy)" },
+  { id: 22, name: "로맨스 (Romance)" },
+  { id: 24, name: "SF (Sci-Fi)" },
+  { id: 36, name: "일상 (Slice of Life)" },
+  { id: 30, name: "스포츠 (Sports)" },
+  { id: 14, name: "공포 (Horror)" },
+];
+
+const RATINGS = [
+  { value: "g", name: "전체 관람가 (G)" },
+  { value: "pg", name: "아동 (PG)" },
+  { value: "pg13", name: "13세 이상 (PG-13)" },
+  { value: "r17", name: "17세 이상 (R-17)" },
+  { value: "r", name: "성인 (R+)" },
+];
+
 // ==========================================
-// 2. AuthContext (기존과 동일)
+// 2. AuthContext (유지)
 // ==========================================
 const AuthContext = createContext();
+
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  // (로그인 유지 등의 기능을 위해 로컬스토리지 사용 추천하지만, 현재 로직 유지)
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) setUser(JSON.parse(storedUser));
+  }, []);
 
   const login = async (inputUserid, inputPassword) => {
     try {
@@ -30,6 +56,7 @@ const AuthProvider = ({ children }) => {
       );
       if (foundUser) {
         setUser(foundUser);
+        localStorage.setItem("user", JSON.stringify(foundUser));
         return true;
       }
       return false;
@@ -58,7 +85,12 @@ const AuthProvider = ({ children }) => {
       return false;
     }
   };
-  const logout = () => setUser(null);
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("user");
+  };
+
   return (
     <AuthContext.Provider value={{ user, login, logout, signup }}>
       {children}
@@ -68,7 +100,7 @@ const AuthProvider = ({ children }) => {
 const useAuth = () => useContext(AuthContext);
 
 // ==========================================
-// 3. Header, Login, Signup (기존과 동일)
+// 3. Header (유지)
 // ==========================================
 const Header = ({ onReset }) => {
   const { user, logout } = useAuth();
@@ -120,6 +152,9 @@ const Header = ({ onReset }) => {
   );
 };
 
+// ==========================================
+// 4. 로그인 / 회원가입 (유지)
+// ==========================================
 const LoginPage = () => {
   const [userid, setUserid] = useState("");
   const [password, setPassword] = useState("");
@@ -211,28 +246,23 @@ const SignupPage = () => {
 };
 
 // ==========================================
-// 4. [신규 기능] 리뷰 섹션 컴포넌트
+// 5. ReviewSection (유지)
 // ==========================================
 const ReviewSection = ({ animeId }) => {
-  const { user } = useAuth(); // 로그인 정보 가져오기
+  const { user } = useAuth();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // 입력 폼 상태
   const [title, setTitle] = useState("");
   const [contents, setContents] = useState("");
   const [rating, setRating] = useState(10);
 
-  // 1. 리뷰 목록 가져오기
   const fetchReviews = async () => {
     try {
       const res = await fetch(REVIEW_API_URL);
       const data = await res.json();
-      // 해당 애니메이션(animeId)의 리뷰만 필터링 (String 변환 비교 안전하게)
       const filtered = data.filter(
         (r) => String(r.animeId) === String(animeId)
       );
-      // 최신순 정렬 (time 내림차순)
       setReviews(filtered.sort((a, b) => b.time - a.time));
     } catch (err) {
       console.error(err);
@@ -245,20 +275,17 @@ const ReviewSection = ({ animeId }) => {
     fetchReviews();
   }, [animeId]);
 
-  // 2. 리뷰 작성 핸들러
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !contents) return alert("제목과 내용을 입력해주세요.");
-
     const newReview = {
-      title: title,
-      contents: contents,
+      title,
+      contents,
       rating: Number(rating),
-      userid: user.userid, // 현재 로그인한 유저 ID
-      time: Math.floor(Date.now() / 1000), // 현재 시간을 Unix Timestamp(초)로 변환
-      animeId: animeId, // [중요] 어떤 애니메이션에 대한 리뷰인지 저장
+      userid: user.userid,
+      time: Math.floor(Date.now() / 1000),
+      animeId: animeId,
     };
-
     try {
       const res = await fetch(REVIEW_API_URL, {
         method: "POST",
@@ -266,23 +293,33 @@ const ReviewSection = ({ animeId }) => {
         body: JSON.stringify(newReview),
       });
       if (res.ok) {
-        alert("리뷰가 등록되었습니다!");
-        setTitle(""); // 폼 초기화
+        alert("리뷰 등록 완료!");
+        setTitle("");
         setContents("");
         setRating(10);
-        fetchReviews(); // 목록 새로고침
-      } else {
-        alert("등록 실패");
-      }
+        fetchReviews();
+      } else alert("등록 실패");
     } catch (err) {
       console.error(err);
     }
   };
 
-  // 날짜 변환 함수 (Unix Timestamp -> "2025-12-02")
-  const formatDate = (timestamp) => {
-    return new Date(timestamp * 1000).toLocaleDateString("ko-KR");
+  const handleDelete = async (reviewId) => {
+    if (!window.confirm("정말로 이 리뷰를 삭제하시겠습니까?")) return;
+    try {
+      const res = await fetch(`${REVIEW_API_URL}/${reviewId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert("리뷰가 삭제되었습니다.");
+        setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      } else alert("삭제 실패");
+    } catch (error) {
+      console.error("Delete Error:", error);
+    }
   };
+  const formatDate = (timestamp) =>
+    new Date(timestamp * 1000).toLocaleDateString("ko-KR");
 
   return (
     <div style={styles.reviewContainer}>
@@ -295,14 +332,12 @@ const ReviewSection = ({ animeId }) => {
       >
         💬 유저 리뷰 ({reviews.length})
       </h2>
-
-      {/* 작성 폼: 로그인한 유저에게만 보임 */}
       {user ? (
         <form onSubmit={handleSubmit} style={styles.reviewForm}>
           <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
             <input
               style={{ ...styles.input, flex: 2 }}
-              placeholder="리뷰 제목 (예: 인생 애니입니다!)"
+              placeholder="리뷰 제목"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -321,7 +356,7 @@ const ReviewSection = ({ animeId }) => {
           <textarea
             style={styles.textarea}
             rows="3"
-            placeholder="이 애니메이션에 대한 감상평을 남겨주세요..."
+            placeholder="감상평을 남겨주세요..."
             value={contents}
             onChange={(e) => setContents(e.target.value)}
           />
@@ -336,21 +371,31 @@ const ReviewSection = ({ animeId }) => {
           필요합니다.
         </div>
       )}
-
-      {/* 리뷰 목록 표시 */}
       <div style={styles.reviewList}>
         {loading ? (
           <div>로딩 중...</div>
         ) : reviews.length === 0 ? (
-          <div style={{ color: "#888", padding: "20px", textAlign: "center" }}>
-            첫 번째 리뷰의 주인공이 되어보세요!
+          <div style={{ color: "#888", textAlign: "center" }}>
+            첫 리뷰를 남겨주세요!
           </div>
         ) : (
           reviews.map((review) => (
             <div key={review.id} style={styles.reviewItem}>
               <div style={styles.reviewHeader}>
-                <span style={styles.reviewTitle}>{review.title}</span>
-                <span style={styles.reviewRating}>⭐ {review.rating}</span>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  <span style={styles.reviewTitle}>{review.title}</span>
+                  <span style={styles.reviewRating}>⭐ {review.rating}</span>
+                </div>
+                {user && user.userid === review.userid && (
+                  <button
+                    onClick={() => handleDelete(review.id)}
+                    style={styles.deleteButton}
+                  >
+                    삭제
+                  </button>
+                )}
               </div>
               <p style={styles.reviewContent}>{review.contents}</p>
               <div style={styles.reviewFooter}>
@@ -368,29 +413,24 @@ const ReviewSection = ({ animeId }) => {
 };
 
 // ==========================================
-// 5. Detail 컴포넌트 (리뷰 섹션 추가됨!)
+// 6. Detail 컴포넌트 (유지)
 // ==========================================
 const Detail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [anime, setAnime] = useState(null);
-
   useEffect(() => {
     fetch(`https://api.jikan.moe/v4/anime/${id}`)
       .then((res) => res.json())
       .then((data) => setAnime(data.data));
   }, [id]);
-
   if (!anime) return <div style={styles.centerText}>로딩 중... 🌀</div>;
-
   return (
     <div style={styles.container}>
       <Header />
       <button onClick={() => navigate(-1)} style={styles.backButton}>
         ← 뒤로 가기
       </button>
-
-      {/* 기존 애니메이션 상세 정보 */}
       <div style={styles.detailCard}>
         <div style={styles.detailHeader}>
           <h1>{anime.title}</h1>
@@ -406,9 +446,12 @@ const Detail = () => {
           </div>
           <div style={styles.detailInfo}>
             <div style={styles.tagContainer}>
-              <span style={styles.badge}>⭐ {anime.score}</span>
-              <span style={styles.badge}>{anime.year}년</span>
+              <span style={styles.badge}>⭐ {anime.score || "N/A"}</span>
+              <span style={styles.badge}>
+                {anime.year ? `${anime.year}년` : "연도 미상"}
+              </span>
               <span style={styles.badge}>{anime.status}</span>
+              <span style={styles.badge}>{anime.rating}</span>
             </div>
             <p>
               <strong>장르:</strong>{" "}
@@ -421,26 +464,41 @@ const Detail = () => {
               rel="noreferrer"
               style={styles.linkButton}
             >
-              MyAnimeList 이동
+              MyAnimeList 이동 ↗
             </a>
           </div>
         </div>
+        {anime.trailer?.embed_url && (
+          <div style={styles.videoContainer}>
+            <h3>🎬 공식 트레일러</h3>
+            <iframe
+              title="trailer"
+              src={anime.trailer.embed_url}
+              width="100%"
+              height="450px"
+              style={{ border: "none", borderRadius: "12px" }}
+              allowFullScreen
+            />
+          </div>
+        )}
       </div>
-
-      {/* [추가] 리뷰 영역 (현재 애니 ID를 전달) */}
       <ReviewSection animeId={id} />
     </div>
   );
 };
 
 // ==========================================
-// 6. Home, App (유지)
+// 7. Home 컴포넌트 (페이지네이션 디자인 변경)
 // ==========================================
 const Home = () => {
   const [animeList, setAnimeList] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [searchInput, setSearchInput] = useState("");
   const [confirmedQuery, setConfirmedQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("");
+  const [selectedRating, setSelectedRating] = useState("");
+
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState(1);
   const [pagination, setPagination] = useState(null);
@@ -449,13 +507,18 @@ const Home = () => {
     setPageInput(page);
   }, [page]);
 
-  const fetchAnime = async (query, pageNum) => {
+  const fetchAnime = async (query, pageNum, genreId, ratingId) => {
     setLoading(true);
     try {
       const baseUrl = "https://api.jikan.moe/v4";
-      const url = query
-        ? `${baseUrl}/anime?q=${query}&limit=12&page=${pageNum}`
-        : `${baseUrl}/top/anime?limit=12&page=${pageNum}`;
+      let url;
+      if (query || genreId || ratingId) {
+        url = `${baseUrl}/anime?q=${query}&page=${pageNum}&limit=12&sfw=true`;
+        if (genreId) url += `&genres=${genreId}`;
+        if (ratingId) url += `&rating=${ratingId}`;
+      } else {
+        url = `${baseUrl}/top/anime?page=${pageNum}&limit=12`;
+      }
       const res = await fetch(url);
       const data = await res.json();
       setAnimeList(data.data || []);
@@ -466,26 +529,33 @@ const Home = () => {
       setLoading(false);
     }
   };
+
   useEffect(() => {
-    fetchAnime("", 1);
+    fetchAnime("", 1, "", "");
   }, []);
+
   const resetHome = () => {
     setSearchInput("");
     setConfirmedQuery("");
+    setSelectedGenre("");
+    setSelectedRating("");
     setPage(1);
-    fetchAnime("", 1);
+    fetchAnime("", 1, "", "");
   };
+
   const handleSearch = (e) => {
     e.preventDefault();
     setConfirmedQuery(searchInput);
     setPage(1);
-    fetchAnime(searchInput, 1);
+    fetchAnime(searchInput, 1, selectedGenre, selectedRating);
   };
+
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    fetchAnime(confirmedQuery, newPage);
+    fetchAnime(confirmedQuery, newPage, selectedGenre, selectedRating);
     window.scrollTo(0, 0);
   };
+
   const handlePageInputSubmit = (e) => {
     e.preventDefault();
     const targetPage = parseInt(pageInput, 10);
@@ -498,22 +568,69 @@ const Home = () => {
     handlePageChange(targetPage);
   };
 
+  // [신규] 페이지 번호 리스트 계산 함수 (10개씩)
+  const getPageNumbers = () => {
+    if (!pagination) return [];
+    const lastPage = pagination.last_visible_page;
+
+    // 현재 페이지가 속한 그룹 계산 (예: 1~10 -> 0, 11~20 -> 1)
+    const currentGroup = Math.ceil(page / 10);
+    const startPage = (currentGroup - 1) * 10 + 1;
+    const endPage = Math.min(startPage + 9, lastPage);
+
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
   return (
     <div style={styles.container}>
       <Header onReset={resetHome} />
+
       <div style={styles.searchBox}>
-        <form onSubmit={handleSearch} style={styles.formRow}>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="애니 검색"
-            style={styles.input}
-          />
-          <button type="submit" style={styles.primaryButton}>
-            검색
-          </button>
+        <form onSubmit={handleSearch} style={styles.formColumn}>
+          <div style={styles.formRow}>
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="애니메이션 제목 검색"
+              style={styles.input}
+            />
+            <button type="submit" style={styles.primaryButton}>
+              검색
+            </button>
+          </div>
+          <div style={styles.filterRow}>
+            <select
+              style={styles.select}
+              value={selectedGenre}
+              onChange={(e) => setSelectedGenre(e.target.value)}
+            >
+              <option value="">🎭 모든 장르</option>
+              {GENRES.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <select
+              style={styles.select}
+              value={selectedRating}
+              onChange={(e) => setSelectedRating(e.target.value)}
+            >
+              <option value="">🔞 모든 연령</option>
+              {RATINGS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </form>
       </div>
+
       {loading ? (
         <div style={styles.centerText}>로딩 중... 🌀</div>
       ) : (
@@ -538,16 +655,66 @@ const Home = () => {
           ))}
         </div>
       )}
+      {!loading && animeList.length === 0 && (
+        <div style={styles.centerText}>검색 결과가 없습니다.</div>
+      )}
+
+      {/* [수정됨] 페이지네이션 UI */}
       {!loading && pagination && (
-        <div style={styles.pagination}>
-          <button
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1}
-            style={styles.pageButton}
-          >
-            &lt;
-          </button>
-          <form onSubmit={handlePageInputSubmit} style={styles.pageForm}>
+        <div style={styles.paginationWrapper}>
+          {/* 1. 이미지 스타일: 버튼 목록 */}
+          <div style={styles.paginationBtnRow}>
+            {/* << 맨 처음 */}
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={page === 1}
+              style={styles.squareBtn}
+            >
+              &lt;&lt;
+            </button>
+            {/* < 이전 페이지 */}
+            <button
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+              style={styles.squareBtn}
+            >
+              &lt;
+            </button>
+
+            {/* 숫자 리스트 (1, 2, 3...) */}
+            {getPageNumbers().map((pageNum) => (
+              <button
+                key={pageNum}
+                onClick={() => handlePageChange(pageNum)}
+                style={
+                  pageNum === page ? styles.activeSquareBtn : styles.squareBtn
+                }
+              >
+                {pageNum.toString().padStart(2, "0")} {/* 01, 02 스타일 */}
+              </button>
+            ))}
+
+            {/* > 다음 페이지 */}
+            <button
+              onClick={() => handlePageChange(page + 1)}
+              disabled={!pagination.has_next_page}
+              style={styles.squareBtn}
+            >
+              &gt;
+            </button>
+            {/* >> 맨 끝 */}
+            <button
+              onClick={() => handlePageChange(pagination.last_visible_page)}
+              disabled={page === pagination.last_visible_page}
+              style={styles.squareBtn}
+            >
+              &gt;&gt;
+            </button>
+          </div>
+
+          {/* 2. 기존 유지: 페이지 입력 폼 */}
+          <form onSubmit={handlePageInputSubmit} style={styles.pageFormInput}>
+            <span style={styles.pageInfo}>Page</span>
             <input
               type="number"
               value={pageInput}
@@ -555,26 +722,21 @@ const Home = () => {
               style={styles.pageInput}
             />
             <span style={styles.pageInfo}>
-              {" "}
               / {pagination.last_visible_page}
             </span>
             <button type="submit" style={styles.goButton}>
-              Go
+              이동
             </button>
           </form>
-          <button
-            onClick={() => handlePageChange(page + 1)}
-            disabled={!pagination.has_next_page}
-            style={styles.pageButton}
-          >
-            &gt;
-          </button>
         </div>
       )}
     </div>
   );
 };
 
+// ==========================================
+// 8. App 라우터
+// ==========================================
 function App() {
   return (
     <AuthProvider>
@@ -591,7 +753,7 @@ function App() {
 }
 
 // ==========================================
-// 7. 스타일 (Review 관련 스타일 추가)
+// 9. 스타일 (페이지네이션 디자인 변경됨)
 // ==========================================
 const styles = {
   container: {
@@ -619,18 +781,35 @@ const styles = {
     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
   },
   formCol: { display: "flex", flexDirection: "column", gap: "15px" },
-  formRow: {
+  searchBox: {
     display: "flex",
+    justifyContent: "center",
+    marginBottom: "30px",
+  },
+  formColumn: {
+    display: "flex",
+    flexDirection: "column",
     gap: "10px",
     width: "100%",
-    justifyContent: "center",
+    maxWidth: "600px",
   },
+  formRow: { display: "flex", gap: "10px", width: "100%" },
+  filterRow: { display: "flex", gap: "10px", width: "100%" },
   input: {
     padding: "12px",
     fontSize: "16px",
     borderRadius: "6px",
     border: "1px solid #ddd",
     flex: 1,
+  },
+  select: {
+    padding: "12px",
+    fontSize: "16px",
+    borderRadius: "6px",
+    border: "1px solid #ddd",
+    flex: 1,
+    backgroundColor: "white",
+    cursor: "pointer",
   },
   primaryButton: {
     padding: "12px 20px",
@@ -689,11 +868,6 @@ const styles = {
     color: "#666",
   },
   authSection: { display: "flex", alignItems: "center", gap: "10px" },
-  searchBox: {
-    display: "flex",
-    justifyContent: "center",
-    marginBottom: "30px",
-  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
@@ -714,42 +888,81 @@ const styles = {
     fontSize: "1.2rem",
     color: "#666",
   },
-  pagination: {
+
+  // [NEW] 페이지네이션 스타일
+  paginationWrapper: {
     display: "flex",
-    justifyContent: "center",
+    flexDirection: "column",
     alignItems: "center",
-    gap: "10px",
+    gap: "15px",
     marginTop: "40px",
     paddingBottom: "20px",
   },
-  pageButton: {
-    padding: "8px 16px",
-    fontSize: "14px",
-    backgroundColor: "#f3f4f6",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    cursor: "pointer",
+  paginationBtnRow: {
+    display: "flex",
+    gap: "5px",
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
-  pageForm: { display: "flex", alignItems: "center", gap: "8px" },
+
+  // 사각형 버튼 스타일 (이미지와 유사하게)
+  squareBtn: {
+    minWidth: "32px",
+    height: "32px",
+    padding: "0 6px",
+    backgroundColor: "white",
+    border: "1px solid #ddd",
+    borderRadius: "4px",
+    color: "#333",
+    cursor: "pointer",
+    fontSize: "13px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeSquareBtn: {
+    minWidth: "32px",
+    height: "32px",
+    padding: "0 6px",
+    backgroundColor: "white",
+    border: "1px solid #f97316",
+    borderRadius: "4px",
+    color: "#f97316",
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontSize: "13px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // 하단 입력 폼 스타일
+  pageFormInput: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    backgroundColor: "#f9f9f9",
+    padding: "8px 16px",
+    borderRadius: "20px",
+  },
   pageInput: {
     width: "50px",
-    padding: "8px",
+    padding: "6px",
     textAlign: "center",
-    borderRadius: "6px",
+    borderRadius: "4px",
     border: "1px solid #ccc",
   },
-  pageInfo: { fontSize: "16px", fontWeight: "bold", color: "#333" },
+  pageInfo: { fontSize: "14px", color: "#555" },
   goButton: {
-    padding: "8px 12px",
+    padding: "6px 12px",
     backgroundColor: "#333",
     color: "white",
     border: "none",
-    borderRadius: "6px",
+    borderRadius: "4px",
     cursor: "pointer",
     fontSize: "12px",
   },
 
-  // Detail 관련
   detailCard: {
     backgroundColor: "white",
     borderRadius: "16px",
@@ -783,6 +996,7 @@ const styles = {
     fontSize: "14px",
     color: "#374151",
     fontWeight: "600",
+    border: "1px solid #e5e7eb",
   },
   synopsis: {
     lineHeight: "1.8",
@@ -791,6 +1005,7 @@ const styles = {
     padding: "20px",
     borderRadius: "12px",
     marginBottom: "25px",
+    fontSize: "15px",
   },
   linkButton: {
     display: "inline-block",
@@ -800,9 +1015,9 @@ const styles = {
     borderRadius: "8px",
     textDecoration: "none",
     fontWeight: "bold",
+    transition: "background 0.2s",
   },
-
-  // [NEW] Review 관련 스타일
+  videoContainer: { marginTop: "50px" },
   reviewContainer: {
     backgroundColor: "white",
     borderRadius: "16px",
@@ -815,12 +1030,6 @@ const styles = {
     padding: "20px",
     borderRadius: "12px",
     marginBottom: "30px",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "6px",
-    border: "1px solid #ddd",
-    fontSize: "14px",
   },
   textarea: {
     width: "100%",
@@ -864,6 +1073,15 @@ const styles = {
     color: "#888",
     display: "flex",
     justifyContent: "space-between",
+  },
+  deleteButton: {
+    backgroundColor: "#ef4444",
+    color: "white",
+    border: "none",
+    padding: "5px 10px",
+    borderRadius: "4px",
+    fontSize: "12px",
+    cursor: "pointer",
   },
 };
 

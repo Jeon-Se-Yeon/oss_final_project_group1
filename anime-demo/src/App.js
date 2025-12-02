@@ -1,4 +1,10 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useCallback,
+} from "react";
 import {
   BrowserRouter,
   Routes,
@@ -246,7 +252,7 @@ const SignupPage = () => {
 };
 
 // ==========================================
-// 5. ReviewSection (유지)
+// 5. ReviewSection (유지 - useCallback 적용)
 // ==========================================
 const ReviewSection = ({ animeId }) => {
   const { user } = useAuth();
@@ -256,7 +262,7 @@ const ReviewSection = ({ animeId }) => {
   const [contents, setContents] = useState("");
   const [rating, setRating] = useState(10);
 
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     try {
       const res = await fetch(REVIEW_API_URL);
       const data = await res.json();
@@ -269,11 +275,11 @@ const ReviewSection = ({ animeId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [animeId]);
 
   useEffect(() => {
     fetchReviews();
-  }, [animeId]);
+  }, [fetchReviews]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -488,7 +494,7 @@ const Detail = () => {
 };
 
 // ==========================================
-// 7. Home 컴포넌트 (페이지네이션 디자인 변경)
+// 7. Home 컴포넌트 (정렬 기능 추가 + useCallback)
 // ==========================================
 const Home = () => {
   const [animeList, setAnimeList] = useState([]);
@@ -499,6 +505,9 @@ const Home = () => {
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedRating, setSelectedRating] = useState("");
 
+  // [신규] 정렬 상태
+  const [sortOption, setSortOption] = useState(""); // ""(기본), "title"(알파벳), "score"(별점)
+
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState(1);
   const [pagination, setPagination] = useState(null);
@@ -507,53 +516,85 @@ const Home = () => {
     setPageInput(page);
   }, [page]);
 
-  const fetchAnime = async (query, pageNum, genreId, ratingId) => {
-    setLoading(true);
-    try {
-      const baseUrl = "https://api.jikan.moe/v4";
-      let url;
-      if (query || genreId || ratingId) {
-        url = `${baseUrl}/anime?q=${query}&page=${pageNum}&limit=12&sfw=true`;
-        if (genreId) url += `&genres=${genreId}`;
-        if (ratingId) url += `&rating=${ratingId}`;
-      } else {
-        url = `${baseUrl}/top/anime?page=${pageNum}&limit=12`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      setAnimeList(data.data || []);
-      setPagination(data.pagination);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // API 호출 함수 (정렬 파라미터 추가 & useCallback 적용)
+  const fetchAnime = useCallback(
+    async (query, pageNum, genreId, ratingId, sortType) => {
+      setLoading(true);
+      try {
+        const baseUrl = "https://api.jikan.moe/v4";
+        let url;
 
+        // 검색어, 필터, 정렬 중 하나라도 있으면 /anime 엔드포인트 사용
+        if (query || genreId || ratingId || sortType) {
+          url = `${baseUrl}/anime?q=${query}&page=${pageNum}&limit=12&sfw=true`;
+          if (genreId) url += `&genres=${genreId}`;
+          if (ratingId) url += `&rating=${ratingId}`;
+
+          // [신규] 정렬 로직 적용
+          if (sortType === "title") {
+            url += "&order_by=title&sort=asc"; // 알파벳순 (오름차순)
+          } else if (sortType === "score") {
+            url += "&order_by=score&sort=desc"; // 별점순 (내림차순)
+          }
+        } else {
+          // 아무 조건 없으면 인기순(기본)
+          url = `${baseUrl}/top/anime?page=${pageNum}&limit=12`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        setAnimeList(data.data || []);
+        setPagination(data.pagination);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  // 초기 로드
   useEffect(() => {
-    fetchAnime("", 1, "", "");
-  }, []);
+    fetchAnime("", 1, "", "", "");
+  }, [fetchAnime]);
 
   const resetHome = () => {
     setSearchInput("");
     setConfirmedQuery("");
     setSelectedGenre("");
     setSelectedRating("");
+    setSortOption(""); // 정렬도 초기화
     setPage(1);
-    fetchAnime("", 1, "", "");
+    fetchAnime("", 1, "", "", "");
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
     setConfirmedQuery(searchInput);
     setPage(1);
-    fetchAnime(searchInput, 1, selectedGenre, selectedRating);
+    // 현재 선택된 필터/정렬 값으로 검색
+    fetchAnime(searchInput, 1, selectedGenre, selectedRating, sortOption);
   };
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    fetchAnime(confirmedQuery, newPage, selectedGenre, selectedRating);
+    fetchAnime(
+      confirmedQuery,
+      newPage,
+      selectedGenre,
+      selectedRating,
+      sortOption
+    );
     window.scrollTo(0, 0);
+  };
+
+  // 정렬 옵션 변경 시 바로 재검색 실행
+  const handleSortChange = (e) => {
+    const newSort = e.target.value;
+    setSortOption(newSort);
+    setPage(1);
+    fetchAnime(confirmedQuery, 1, selectedGenre, selectedRating, newSort);
   };
 
   const handlePageInputSubmit = (e) => {
@@ -568,20 +609,14 @@ const Home = () => {
     handlePageChange(targetPage);
   };
 
-  // [신규] 페이지 번호 리스트 계산 함수 (10개씩)
   const getPageNumbers = () => {
     if (!pagination) return [];
     const lastPage = pagination.last_visible_page;
-
-    // 현재 페이지가 속한 그룹 계산 (예: 1~10 -> 0, 11~20 -> 1)
     const currentGroup = Math.ceil(page / 10);
     const startPage = (currentGroup - 1) * 10 + 1;
     const endPage = Math.min(startPage + 9, lastPage);
-
     const pages = [];
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
 
@@ -602,6 +637,7 @@ const Home = () => {
               검색
             </button>
           </div>
+
           <div style={styles.filterRow}>
             <select
               style={styles.select}
@@ -626,6 +662,17 @@ const Home = () => {
                   {r.name}
                 </option>
               ))}
+            </select>
+
+            {/* [신규] 정렬 선택 Select Box */}
+            <select
+              style={styles.select}
+              value={sortOption}
+              onChange={handleSortChange}
+            >
+              <option value="">🏆 기본순 (인기)</option>
+              <option value="title">🅰️ 제목순 (A-Z)</option>
+              <option value="score">⭐ 별점순 (높은순)</option>
             </select>
           </div>
         </form>
@@ -659,12 +706,9 @@ const Home = () => {
         <div style={styles.centerText}>검색 결과가 없습니다.</div>
       )}
 
-      {/* [수정됨] 페이지네이션 UI */}
       {!loading && pagination && (
         <div style={styles.paginationWrapper}>
-          {/* 1. 이미지 스타일: 버튼 목록 */}
           <div style={styles.paginationBtnRow}>
-            {/* << 맨 처음 */}
             <button
               onClick={() => handlePageChange(1)}
               disabled={page === 1}
@@ -672,7 +716,6 @@ const Home = () => {
             >
               &lt;&lt;
             </button>
-            {/* < 이전 페이지 */}
             <button
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 1}
@@ -680,8 +723,6 @@ const Home = () => {
             >
               &lt;
             </button>
-
-            {/* 숫자 리스트 (1, 2, 3...) */}
             {getPageNumbers().map((pageNum) => (
               <button
                 key={pageNum}
@@ -690,11 +731,9 @@ const Home = () => {
                   pageNum === page ? styles.activeSquareBtn : styles.squareBtn
                 }
               >
-                {pageNum.toString().padStart(2, "0")} {/* 01, 02 스타일 */}
+                {pageNum.toString().padStart(2, "0")}
               </button>
             ))}
-
-            {/* > 다음 페이지 */}
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={!pagination.has_next_page}
@@ -702,7 +741,6 @@ const Home = () => {
             >
               &gt;
             </button>
-            {/* >> 맨 끝 */}
             <button
               onClick={() => handlePageChange(pagination.last_visible_page)}
               disabled={page === pagination.last_visible_page}
@@ -711,8 +749,6 @@ const Home = () => {
               &gt;&gt;
             </button>
           </div>
-
-          {/* 2. 기존 유지: 페이지 입력 폼 */}
           <form onSubmit={handlePageInputSubmit} style={styles.pageFormInput}>
             <span style={styles.pageInfo}>Page</span>
             <input
@@ -753,7 +789,7 @@ function App() {
 }
 
 // ==========================================
-// 9. 스타일 (페이지네이션 디자인 변경됨)
+// 9. 스타일 (유지)
 // ==========================================
 const styles = {
   container: {
@@ -888,8 +924,6 @@ const styles = {
     fontSize: "1.2rem",
     color: "#666",
   },
-
-  // [NEW] 페이지네이션 스타일
   paginationWrapper: {
     display: "flex",
     flexDirection: "column",
@@ -904,8 +938,6 @@ const styles = {
     flexWrap: "wrap",
     justifyContent: "center",
   },
-
-  // 사각형 버튼 스타일 (이미지와 유사하게)
   squareBtn: {
     minWidth: "32px",
     height: "32px",
@@ -935,8 +967,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // 하단 입력 폼 스타일
   pageFormInput: {
     display: "flex",
     alignItems: "center",
@@ -962,7 +992,6 @@ const styles = {
     cursor: "pointer",
     fontSize: "12px",
   },
-
   detailCard: {
     backgroundColor: "white",
     borderRadius: "16px",

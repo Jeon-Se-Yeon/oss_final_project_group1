@@ -20,7 +20,7 @@ function App() {
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/signup" element={<SignupPage />} />
                     <Route path="/detail/:id" element={<Detail />} />
-                    <Route path="/mypage" element={<MyPage />} /> {/* 마이페이지 라우트 추가 */}
+                    <Route path="/mypage" element={<MyPage />} />
                 </Routes>
             </BrowserRouter>
         </AuthProvider>

@@ -1,5 +1,7 @@
+// src/pages/Home.js
+
 import React, { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom"; // useSearchParams 추가
 import Header from "../components/Header";
 import { GENRES, RATINGS } from "../constants";
 import { styles } from "../styles";
@@ -7,45 +9,52 @@ import { styles } from "../styles";
 const Home = () => {
     const [animeList, setAnimeList] = useState([]);
     const [loading, setLoading] = useState(false);
-
-    const [searchInput, setSearchInput] = useState("");
-    const [confirmedQuery, setConfirmedQuery] = useState("");
-    const [selectedGenre, setSelectedGenre] = useState("");
-    const [selectedRating, setSelectedRating] = useState("");
-
-    const [sortOption, setSortOption] = useState(""); 
-
-    const [page, setPage] = useState(1);
-    const [pageInput, setPageInput] = useState(1);
     const [pagination, setPagination] = useState(null);
+    
+    // [핵심 변경 1] URL 쿼리 파라미터 관리 훅 사용
+    const [searchParams, setSearchParams] = useSearchParams();
 
+    // URL에서 현재 상태 값 읽어오기 (없으면 기본값 사용)
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const query = searchParams.get("q") || "";
+    const genre = searchParams.get("genre") || "";
+    const rating = searchParams.get("rating") || "";
+    const sort = searchParams.get("sort") || "";
+
+    // 검색창 입력값은 타이핑 중에는 URL에 반영하지 않으므로 로컬 state 유지
+    const [searchInput, setSearchInput] = useState(query);
+    const [pageInput, setPageInput] = useState(page);
+
+    // 페이지가 URL에 따라 바뀔 때 인풋창 숫자도 동기화
     useEffect(() => {
         setPageInput(page);
     }, [page]);
+    
+    // 검색창 초기값 동기화 (뒤로가기 시 검색어 유지)
+    useEffect(() => {
+        setSearchInput(query);
+    }, [query]);
 
-    // API 호출 함수 (정렬 파라미터 추가 & useCallback 적용)
+    // API 호출 함수
     const fetchAnime = useCallback(
-        async (query, pageNum, genreId, ratingId, sortType) => {
+        async () => {
             setLoading(true);
             try {
                 const baseUrl = "https://api.jikan.moe/v4";
                 let url;
 
-                // 검색어, 필터, 정렬 중 하나라도 있으면 /anime 엔드포인트 사용
-                if (query || genreId || ratingId || sortType) {
-                    url = `${baseUrl}/anime?q=${query}&page=${pageNum}&limit=12&sfw=true`;
-                    if (genreId) url += `&genres=${genreId}`;
-                    if (ratingId) url += `&rating=${ratingId}`;
+                if (query || genre || rating || sort) {
+                    url = `${baseUrl}/anime?q=${query}&page=${page}&limit=12&sfw=true`;
+                    if (genre) url += `&genres=${genre}`;
+                    if (rating) url += `&rating=${rating}`;
 
-                    // 정렬 로직 적용
-                    if (sortType === "title") {
+                    if (sort === "title") {
                         url += "&order_by=title&sort=asc"; 
-                    } else if (sortType === "score") {
+                    } else if (sort === "score") {
                         url += "&order_by=score&sort=desc"; 
                     }
                 } else {
-                    // 아무 조건 없으면 인기순(기본)
-                    url = `${baseUrl}/top/anime?page=${pageNum}&limit=12`;
+                    url = `${baseUrl}/top/anime?page=${page}&limit=12`;
                 }
 
                 const res = await fetch(url);
@@ -58,54 +67,47 @@ const Home = () => {
                 setLoading(false);
             }
         },
-        []
+        [page, query, genre, rating, sort] // 의존성 배열에 URL 파라미터들 추가
     );
 
-    // 초기 로드
+    // [핵심 변경 2] URL 파라미터(searchParams)가 변할 때마다 데이터 fetch
     useEffect(() => {
-        fetchAnime("", 1, "", "", "");
+        fetchAnime();
     }, [fetchAnime]);
 
+    // 초기화 (URL 파라미터 제거)
     const resetHome = () => {
         setSearchInput("");
-        setConfirmedQuery("");
-        setSelectedGenre("");
-        setSelectedRating("");
-        setSortOption(""); 
-        setPage(1);
-        fetchAnime("", 1, "", "", "");
+        setSearchParams({}); // URL 쿼리 전체 삭제
+    };
+
+    // [핵심 변경 3] 상태 변경 시 URL 업데이트 함수들
+    const updateParams = (newParams) => {
+        // 기존 파라미터 유지하면서 새로운 값 덮어쓰기
+        const currentParams = Object.fromEntries(searchParams);
+        setSearchParams({ ...currentParams, ...newParams });
     };
 
     const handleSearch = (e) => {
         e.preventDefault();
-        setConfirmedQuery(searchInput);
-        setPage(1);
-        // 현재 선택된 필터/정렬 값으로 검색
-        fetchAnime(searchInput, 1, selectedGenre, selectedRating, sortOption);
+        // 검색 시 페이지는 1로 초기화
+        setSearchParams({ 
+            q: searchInput, 
+            page: 1, 
+            genre, 
+            rating, 
+            sort 
+        });
     };
 
-    // 필터 변경 시 바로 재검색 실행
-    const handleFilterChange = (setter, newValue) => {
-        setter(newValue);
-        setPage(1);
-        // 새로운 필터/정렬 값으로 API 호출
-        const newGenre = setter === setSelectedGenre ? newValue : selectedGenre;
-        const newRating = setter === setSelectedRating ? newValue : selectedRating;
-        const newSort = setter === setSortOption ? newValue : sortOption;
-        
-        fetchAnime(confirmedQuery, 1, newGenre, newRating, newSort);
+    const handleFilterChange = (key, value) => {
+        // 필터 변경 시 페이지 1로 리셋하며 URL 업데이트
+        updateParams({ [key]: value, page: 1 });
     };
-
 
     const handlePageChange = (newPage) => {
-        setPage(newPage);
-        fetchAnime(
-            confirmedQuery,
-            newPage,
-            selectedGenre,
-            selectedRating,
-            sortOption
-        );
+        // 페이지 변경 시 URL 업데이트 (기존 필터 유지)
+        updateParams({ page: newPage });
         window.scrollTo(0, 0);
     };
 
@@ -151,10 +153,11 @@ const Home = () => {
                     </div>
 
                     <div style={styles.filterRow}>
+                        {/* value에 URL에서 가져온 상태(genre, rating, sort) 연결 */}
                         <select
                             style={styles.select}
-                            value={selectedGenre}
-                            onChange={(e) => handleFilterChange(setSelectedGenre, e.target.value)}
+                            value={genre}
+                            onChange={(e) => handleFilterChange("genre", e.target.value)}
                         >
                             <option value="">🎭 모든 장르</option>
                             {GENRES.map((g) => (
@@ -165,8 +168,8 @@ const Home = () => {
                         </select>
                         <select
                             style={styles.select}
-                            value={selectedRating}
-                            onChange={(e) => handleFilterChange(setSelectedRating, e.target.value)}
+                            value={rating}
+                            onChange={(e) => handleFilterChange("rating", e.target.value)}
                         >
                             <option value="">🔞 모든 연령</option>
                             {RATINGS.map((r) => (
@@ -176,11 +179,10 @@ const Home = () => {
                             ))}
                         </select>
 
-                        {/* 정렬 선택 Select Box */}
                         <select
                             style={styles.select}
-                            value={sortOption}
-                            onChange={(e) => handleFilterChange(setSortOption, e.target.value)}
+                            value={sort}
+                            onChange={(e) => handleFilterChange("sort", e.target.value)}
                         >
                             <option value="">🏆 기본순 (인기)</option>
                             <option value="title">🅰️ 제목순 (A-Z)</option>

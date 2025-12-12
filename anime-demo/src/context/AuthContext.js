@@ -1,7 +1,10 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { USER_API_URL } from "../constants";
 
 const AuthContext = createContext();
+
+// 자동 로그아웃 시간 설정 (예: 30분 = 30 * 60 * 1000 ms)
+const LOGOUT_TIMER = 2 * 60 * 60 * 1000;
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -10,6 +13,42 @@ export const AuthProvider = ({ children }) => {
         const storedUser = localStorage.getItem("user");
         if (storedUser) setUser(JSON.parse(storedUser));
     }, []);
+
+    const logout = useCallback(() => {
+        setUser(null);
+        localStorage.removeItem("user");
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+
+        let timer;
+
+        const handleAutoLogout = () => {
+            alert("장시간 활동이 없어 자동 로그아웃 되었습니다.");
+            logout();
+        };
+
+        const resetTimer = () => {
+            clearTimeout(timer);
+            timer = setTimeout(handleAutoLogout, LOGOUT_TIMER);
+        };
+
+        const events = ["mousemove", "click", "keydown", "scroll"];
+
+        events.forEach((event) => {
+            window.addEventListener(event, resetTimer);
+        });
+
+        resetTimer();
+
+        return () => {
+            clearTimeout(timer);
+            events.forEach((event) => {
+                window.removeEventListener(event, resetTimer);
+            });
+        };
+    }, [user, logout]);
 
     const login = async (inputUserid, inputPassword) => {
         try {
@@ -48,11 +87,6 @@ export const AuthProvider = ({ children }) => {
             console.error("Signup Error:", error);
             return false;
         }
-    };
-
-    const logout = () => {
-        setUser(null);
-        localStorage.removeItem("user");
     };
 
     return (

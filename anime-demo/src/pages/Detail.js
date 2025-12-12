@@ -1,9 +1,48 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Header from "../components/Header";
 import ReviewSection from "../components/ReviewSection";
 import { styles } from "../styles";
+
+const TiltImage = ({ src, alt, style }) => {
+    const [transform, setTransform] = useState("");
+    const [transition, setTransition] = useState("transform 0.1s ease-out");
+
+    const handleMouseMove = (e) => {
+        const { left, top, width, height } = e.target.getBoundingClientRect();
+        
+        const x = (e.clientX - left) / width;
+        const y = (e.clientY - top) / height;
+
+        const rotateY = (x - 0.5) * 40;
+        const rotateX = (0.5 - y) * 40;
+
+        setTransition("none");
+        setTransform(`perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`);
+    };
+
+    const handleMouseLeave = () => {
+        setTransition("transform 0.5s ease-out");
+        setTransform("perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)");
+    };
+
+    return (
+        <img
+            src={src}
+            alt={alt}
+            style={{
+                ...style,
+                transform: transform,
+                transition: transition,
+                willChange: "transform",
+                cursor: "pointer"
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+        />
+    );
+};
 
 const Detail = () => {
     const { id } = useParams();
@@ -39,7 +78,7 @@ const Detail = () => {
         }
     };
 
-    if (!anime) return <div style={styles.centerText}>로딩 중... </div>;
+    if (!anime) return <div style={styles.centerText}>로딩 중... 🌀</div>;
 
     return (
         <div style={styles.container}>
@@ -70,7 +109,7 @@ const Detail = () => {
                 </div>
                 <div style={styles.detailBody}>
                     <div style={styles.imageWrapper}>
-                        <img
+                        <TiltImage
                             src={anime.images.jpg.large_image_url}
                             alt="poster"
                             style={styles.detailImage}

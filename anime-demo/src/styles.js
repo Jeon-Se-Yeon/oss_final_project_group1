@@ -1,5 +1,3 @@
-// src/styles.js
-
 export const styles = {
   // --- 레이아웃 공통 ---
   container: {
@@ -7,10 +5,10 @@ export const styles = {
     margin: "0 auto",
     padding: "20px",
     fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif",
-    boxSizing: "border-box", // 패딩이 너비에 포함되도록 설정
+    boxSizing: "border-box",
     width: "100%",
   },
-  
+
   // --- 헤더 ---
   header: {
     marginBottom: "30px",
@@ -21,12 +19,12 @@ export const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    flexWrap: "wrap", // 모바일에서 줄바꿈 허용
-    gap: "15px",      // 줄바꿈 시 간격
+    flexWrap: "wrap",
+    gap: "15px",
   },
-  authSection: { 
-    display: "flex", 
-    alignItems: "center", 
+  authSection: {
+    display: "flex",
+    alignItems: "center",
     gap: "10px",
     flexWrap: "wrap",
   },
@@ -34,7 +32,7 @@ export const styles = {
   // --- 로그인/회원가입 카드 ---
   authCard: {
     maxWidth: "400px",
-    width: "100%", // 모바일 대응
+    width: "100%",
     margin: "80px auto",
     padding: "30px",
     border: "1px solid #eee",
@@ -61,30 +59,30 @@ export const styles = {
     flexDirection: "column",
     gap: "10px",
     width: "100%",
-    maxWidth: "800px", // 검색창 최대 너비 늘림
+    maxWidth: "800px",
     margin: "0 auto",
   },
-  formRow: { 
-    display: "flex", 
-    gap: "10px", 
+  formRow: {
+    display: "flex",
+    gap: "10px",
     width: "100%",
-    flexWrap: "wrap", // 모바일에서 버튼이 아래로 내려갈 수 있게
+    flexWrap: "wrap",
   },
-  filterRow: { 
-    display: "flex", 
-    gap: "10px", 
-    width: "100%", 
-    flexWrap: "wrap", // 모바일에서 필터들이 줄바꿈되게
+  filterRow: {
+    display: "flex",
+    gap: "10px",
+    width: "100%",
+    flexWrap: "wrap",
   },
-  
+
   // --- 입력 요소 공통 ---
   input: {
     padding: "12px 15px",
     fontSize: "16px",
     borderRadius: "8px",
     border: "1px solid #ddd",
-    flex: 1, // 남은 공간 채우기
-    minWidth: "200px", // 너무 작아지지 않게 방지
+    flex: 1,
+    minWidth: "200px",
     outline: "none",
     transition: "border-color 0.2s",
   },
@@ -111,7 +109,7 @@ export const styles = {
     fontWeight: "bold",
     fontSize: "15px",
     transition: "background 0.2s",
-    whiteSpace: "nowrap", // 텍스트 줄바꿈 방지
+    whiteSpace: "nowrap",
   },
   secondaryButton: {
     padding: "12px 24px",
@@ -170,12 +168,22 @@ export const styles = {
     cursor: "pointer",
     display: "inline-block",
   },
-  
+  deleteButton: {
+    backgroundColor: "#ef4444",
+    color: "white",
+    border: "none",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    fontSize: "13px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    transition: "background 0.2s",
+  },
+
   // --- 메인 리스트 (Grid) ---
   grid: {
     display: "grid",
-    // 화면 크기에 따라 자동으로 열 개수 조절 (최소 160px)
-    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", 
+    gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
     gap: "20px",
     paddingBottom: "40px",
   },
@@ -189,10 +197,10 @@ export const styles = {
     transition: "transform 0.2s, box-shadow 0.2s",
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
   },
-  image: { 
-    width: "100%", 
-    height: "240px", // 높이 약간 줄임
-    objectFit: "cover" 
+  image: {
+    width: "100%",
+    height: "240px",
+    objectFit: "cover"
   },
   content: { padding: "12px" },
   centerText: {
@@ -218,7 +226,7 @@ export const styles = {
     justifyContent: "center",
   },
   squareBtn: {
-    minWidth: "36px", // 터치하기 좋게 조금 키움
+    minWidth: "36px",
     height: "36px",
     padding: "0 6px",
     backgroundColor: "white",
@@ -236,7 +244,7 @@ export const styles = {
     minWidth: "36px",
     height: "36px",
     padding: "0 6px",
-    backgroundColor: "#6366f1", // 포인트 컬러
+    backgroundColor: "#6366f1",
     border: "1px solid #6366f1",
     borderRadius: "6px",
     color: "white",
@@ -289,23 +297,27 @@ export const styles = {
   detailBody: { 
     display: "flex", 
     gap: "30px", 
-    flexWrap: "wrap", // [중요] 모바일에서 이미지가 위로 가고 텍스트가 아래로 가도록 설정
-    justifyContent: "center", // 모바일에서 가운데 정렬
+    flexWrap: "wrap", 
+    justifyContent: "center", 
+    alignItems: "flex-start",
   },
-  imageWrapper: { 
+  imageWrapper: {
     flexShrink: 0,
     display: "flex",
     justifyContent: "center",
   },
   detailImage: {
     width: "100%",
-    maxWidth: "300px", // 너무 커지지 않게 제한
+    maxWidth: "300px", 
+    height: "auto",
     borderRadius: "12px",
     boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+    objectFit: "cover",
+    aspectRatio: "2 / 3",
   },
-  detailInfo: { 
-    flex: 1, 
-    minWidth: "280px", // 너무 좁아지면 줄바꿈 유도
+  detailInfo: {
+    flex: 1,
+    minWidth: "280px",
   },
   tagContainer: {
     display: "flex",
@@ -330,7 +342,7 @@ export const styles = {
     borderRadius: "12px",
     marginBottom: "25px",
     fontSize: "15px",
-    wordBreak: "keep-all", // 한글 줄바꿈 최적화
+    wordBreak: "keep-all",
   },
   linkButton: {
     display: "inline-block",
@@ -369,7 +381,7 @@ export const styles = {
     marginTop: "10px",
     fontSize: "15px",
     boxSizing: "border-box",
-    resize: "vertical", // 세로로만 리사이즈 허용
+    resize: "vertical",
     fontFamily: "inherit",
   },
   reviewButton: {
@@ -381,12 +393,12 @@ export const styles = {
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
-    width: "100%", // 모바일에서 버튼 꽉 채우기
-    maxWidth: "150px", // 데스크탑에선 적당히
+    width: "100%",
+    maxWidth: "150px",
   },
   reviewList: { display: "flex", flexDirection: "column", gap: "15px" },
-  reviewItem: { 
-    borderBottom: "1px solid #f1f5f9", 
+  reviewItem: {
+    borderBottom: "1px solid #f1f5f9",
     paddingBottom: "20px",
     marginBottom: "5px"
   },
@@ -395,7 +407,7 @@ export const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "10px",
-    flexWrap: "wrap", // 내용 길어지면 줄바꿈
+    flexWrap: "wrap",
     gap: "10px",
   },
   reviewTitle: { fontWeight: "bold", fontSize: "16px", color: "#1f2937" },
